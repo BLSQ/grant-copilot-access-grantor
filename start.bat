@@ -1,5 +1,6 @@
 @echo off
 title COPA AI Access Grantor
+cd /d "%~dp0"
 
 echo.
 echo  ========================================
