@@ -5,7 +5,7 @@ Usage:
     pip install -r requirements.txt
     python app.py
 
-Then open http://localhost:9000
+Then open http://localhost:9999
 """
 
 import asyncio
@@ -454,4 +454,4 @@ async def index():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=9000)
+    uvicorn.run(app, host="0.0.0.0", port=9999)

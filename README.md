@@ -12,39 +12,36 @@ For each email address submitted:
 4. **Creates** a user in Auth0 (EU) with the email + password in the specified connection
 5. **Sends** an email via Resend with the 1Password share link
 
-## Prerequisites
+## Quick start
 
-- **Python 3.11+**
-- **1Password Service Account token** with vault access
-- **Auth0 Machine-to-Machine application** with Management API permissions (`create:users`, `delete:users`)
-- **Resend account** with a verified sending domain
+Only requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
-## Setup
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and make sure it's running
+2. Copy `.env.example` to `.env` and fill in the credentials
+3. **Windows:** double-click `start.bat`
+   **Mac/Linux:** run `./start.sh`
 
-```bash
-# Install Python deps
-make install-deps
+The browser opens automatically at [http://localhost:9999](http://localhost:9999).
 
-# Copy .env.example and fill in your credentials
-cp .env.example .env
-# Edit .env with your values
-```
+## Local development
 
-## Run
+Requires Python 3.11+.
 
 ```bash
-make run
+# Install deps + start server + open browser
+make
 ```
-
-Open [http://localhost:9000](http://localhost:9000).
 
 ### Makefile targets
 
 | Target | Description |
 |---|---|
-| `make setup` | Install all prerequisites |
+| `make` | Install deps, start server, open browser |
+| `make docker` | Build and run via Docker |
+| `make docker-build` | Build Docker image only |
+| `make docker-run` | Run Docker container only |
 | `make install-deps` | Install Python deps |
-| `make run` | Start server on port 9000 |
+| `make run` | Start server on port 9999 |
 
 ## Architecture
 
