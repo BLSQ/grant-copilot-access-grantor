@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>COPA AI Access Grantor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f6f8;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    header span {
+      font-size: 0.8rem;
+      background: rgba(255,255,255,0.12);
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .card h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #555;
+      margin-bottom: 0.35rem;
+    }
+
+    textarea, input[type="text"] {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      transition: border-color 0.15s;
+      background: #fafafa;
+    }
+
+    textarea:focus, input:focus {
+      outline: none;
+      border-color: #4f6ef7;
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .form-row {
+      margin-bottom: 1rem;
+    }
+
+    .hint {
+      font-size: 0.78rem;
+      color: #888;
+      margin-top: 0.25rem;
+    }
+
+    button#submit-btn {
+      background: #4f6ef7;
+      color: #fff;
+      border: none;
+      padding: 0.7rem 1.75rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+      width: 100%;
+    }
+
+    button#submit-btn:hover { background: #3b5de7; }
+    button#submit-btn:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+
+    .log-entry {
+      border: 1px solid #e8e8e8;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+    }
+
+    .log-header {
+      background: #f8f9fb;
+      padding: 0.6rem 1rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      border-bottom: 1px solid #e8e8e8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .log-steps {
+      padding: 0.5rem 1rem;
+    }
+
+    .step {
+      padding: 0.4rem 0;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .step .icon {
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .step.pending .icon { color: #ccc; }
+    .step.running .icon { color: #f0ad4e; }
+    .step.done .icon { color: #27ae60; }
+    .step.error .icon { color: #e74c3c; }
+
+    .step.error .error-msg {
+      color: #e74c3c;
+      font-size: 0.8rem;
+      margin-left: 1.6rem;
+      display: block;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+
+    .badge.success { background: #d4edda; color: #155724; }
+    .badge.error { background: #f8d7da; color: #721c24; }
+    .badge.running { background: #fff3cd; color: #856404; }
+
+    #results { display: none; }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid #f0ad4e;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>COPA AI Access Grantor</h1>
+  <span>Auth0 + 1Password + Resend</span>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h2>Grant Access</h2>
+    <div class="form-row">
+      <label for="emails">Email addresses</label>
+      <textarea id="emails" placeholder="user1@example.com&#10;user2@example.com&#10;user3@example.com"></textarea>
+      <div class="hint">One email per line</div>
+    </div>
+    <div class="form-row">
+      <label for="connection">Auth0 Connection</label>
+      <input type="text" id="connection" value="Username-Password-Authentication">
+    </div>
+    <button id="submit-btn" onclick="handleSubmit()">Grant Access</button>
+  </div>
+
+  <div id="results" class="card">
+    <h2>Progress</h2>
+    <div id="log"></div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// STEP DEFINITIONS
+// ============================================================
+const STEPS = [
+  { id: 'password', label: 'Generate password' },
+  { id: '1password', label: 'Create 1Password item' },
+  { id: 'share', label: 'Get share link' },
+  { id: 'auth0', label: 'Create Auth0 user' },
+  { id: 'email', label: 'Send email via Resend' },
+  { id: 'cleanup', label: 'Rollback', hidden: true },
+];
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function createLogEntry(email) {
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.id = `log-${CSS.escape(email)}`;
+  entry.innerHTML = `
+    <div class="log-header">
+      <span>${email}</span>
+      <span class="badge running">Processing</span>
+    </div>
+    <div class="log-steps">
+      ${STEPS.map(s => `
+        <div class="step pending" id="step-${CSS.escape(email)}-${s.id}"
+             ${s.hidden ? 'style="display:none"' : ''}>
+          <span class="icon">&#9675;</span>
+          <span>${s.label}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  document.getElementById('log').appendChild(entry);
+}
+
+function updateStep(email, stepId, status, errorMsg) {
+  const el = document.getElementById(`step-${CSS.escape(email)}-${stepId}`);
+  if (!el) return;
+
+  el.style.display = '';
+  el.className = `step ${status}`;
+  const iconMap = {
+    pending: '&#9675;',
+    running: '<span class="spinner"></span>',
+    done: '&#10003;',
+    error: '&#10007;',
+  };
+  el.querySelector('.icon').innerHTML = iconMap[status];
+
+  if (status === 'error' && errorMsg) {
+    let errEl = el.querySelector('.error-msg');
+    if (!errEl) {
+      errEl = document.createElement('span');
+      errEl.className = 'error-msg';
+      el.appendChild(errEl);
+    }
+    errEl.textContent = errorMsg;
+  }
+}
+
+function updateBadge(email, status) {
+  const entry = document.getElementById(`log-${CSS.escape(email)}`);
+  if (!entry) return;
+  const badge = entry.querySelector('.badge');
+  badge.className = `badge ${status}`;
+  badge.textContent = status === 'success' ? 'Done' : status === 'error' ? 'Failed' : 'Processing';
+}
+
+// ============================================================
+// BACKEND COMMUNICATION (SSE streaming from Python backend)
+// ============================================================
+async function grantAccess(email, connection) {
+  const response = await fetch('/api/grant', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, connection }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Server error: ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let hadError = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // keep incomplete line
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const event = JSON.parse(line.slice(6));
+        updateStep(email, event.step, event.status, event.error);
+        if (event.status === 'error') hadError = true;
+      } catch {
+        // skip malformed lines
+      }
+    }
+  }
+
+  return !hadError;
+}
+
+// ============================================================
+// FORM HANDLER
+// ============================================================
+async function handleSubmit() {
+  const btn = document.getElementById('submit-btn');
+  const raw = document.getElementById('emails').value.trim();
+  const connection = document.getElementById('connection').value.trim();
+
+  if (!raw) return;
+
+  const emails = raw
+    .split('\n')
+    .map(e => e.trim().toLowerCase())
+    .filter(e => e && e.includes('@'));
+
+  if (emails.length === 0) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+
+  const resultsDiv = document.getElementById('results');
+  const logDiv = document.getElementById('log');
+  resultsDiv.style.display = 'block';
+  logDiv.innerHTML = '';
+
+  for (const email of emails) {
+    createLogEntry(email);
+  }
+
+  // Process sequentially to avoid rate limits
+  for (const email of emails) {
+    const success = await grantAccess(email, connection);
+    updateBadge(email, success ? 'success' : 'error');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Grant Access';
+}
+</script>
+
+</body>
+</html>
