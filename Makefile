@@ -1,9 +1,11 @@
-.PHONY: setup install-op install-deps run
+.PHONY: all setup install-deps run
 
-setup: install-op install-deps ## Install all prerequisites
+all: install-deps ## Install deps, start server, open browser
+	@echo "Starting server on http://localhost:9000"
+	@open http://localhost:9000 &
+	python app.py
 
-install-op: ## Install 1Password CLI
-	brew install --cask 1password-cli
+setup: install-deps ## Alias for install-deps
 
 install-deps: ## Install Python dependencies
 	pip install -r requirements.txt

@@ -1,6 +1,6 @@
 # COPA AI Access Grantor
 
-Web tool that provisions user access across Auth0, 1Password, and Mailgun/Resend in one step.
+Web tool that provisions user access across Auth0, 1Password, and Resend in one step.
 
 ## What it does
 
@@ -10,22 +10,20 @@ For each email address submitted:
 2. **Creates** a Login item in 1Password with the credentials
 3. **Gets** a share link for the 1Password item (expires in 14 days)
 4. **Creates** a user in Auth0 (EU) with the email + password in the specified connection
-5. **Sends** an email via Mailgun/Resend with the 1Password share link
+5. **Sends** an email via Resend with the 1Password share link
 
 ## Prerequisites
 
 - **Python 3.11+**
-- **1Password CLI (`op`)** — [install guide](https://developer.1password.com/docs/cli/get-started/) 
-  - `brew install 1password-cli`
 - **1Password Service Account token** with vault access
-- **Auth0 Machine-to-Machine application** with Management API permissions (`create:users`)
-- **Mailgun/Resend account** with a verified sending domain
+- **Auth0 Machine-to-Machine application** with Management API permissions (`create:users`, `delete:users`)
+- **Resend account** with a verified sending domain
 
 ## Setup
 
 ```bash
-# Install all prerequisites (1Password CLI + Python deps)
-make setup
+# Install Python deps
+make install-deps
 
 # Copy .env.example and fill in your credentials
 cp .env.example .env
@@ -44,9 +42,8 @@ Open [http://localhost:9000](http://localhost:9000).
 
 | Target | Description |
 |---|---|
-| `make setup` | Install 1Password CLI + Python deps |
-| `make install-op` | Install 1Password CLI only |
-| `make install-deps` | Install Python deps only |
+| `make setup` | Install all prerequisites |
+| `make install-deps` | Install Python deps |
 | `make run` | Start server on port 9000 |
 
 ## Architecture
@@ -57,12 +54,12 @@ Browser (index.html)
   │  POST /api/grant  (SSE stream)
   ▼
 FastAPI (app.py)
-  ├── 1Password CLI (op item create / op item share)
+  ├── 1Password Python SDK (item create / share / delete)
   ├── Auth0 Management API (httpx)
-  └── Mailgun API (httpx)
+  └── Resend API (httpx)
 ```
 
-The frontend sends one request per email. The backend streams Server-Sent Events back so the UI shows real-time progress per step.
+The frontend sends one request per email. The backend streams Server-Sent Events back so the UI shows real-time progress per step. If any step fails, previously created resources are rolled back automatically.
 
 ## Configuration reference
 
@@ -73,7 +70,5 @@ The frontend sends one request per email. The backend streams Server-Sent Events
 | `AUTH0_CLIENT_SECRET` | M2M application client secret |
 | `OP_SERVICE_ACCOUNT_TOKEN` | 1Password Service Account token |
 | `OP_VAULT_ID` | UUID of the 1Password vault for storing credentials |
-| `MAILGUN_API_KEY` | Mailgun private API key |
-| `MAILGUN_DOMAIN` | Mailgun sending domain |
-| `MAILGUN_EU` | Set `True` for EU Mailgun region |
-| `MAILGUN_FROM` | Sender address for emails |
+| `RESEND_API_KEY` | Resend API key |
+| `RESEND_FROM` | Sender address for emails |
