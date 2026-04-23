@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>COPA AI Access Grantor</title>
+  <link rel="icon" href="https://dev.copa-ai.org/assets/gaia-logo-without-text-DEsdmCrX.png" type="image/png">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -23,24 +24,10 @@
       gap: 0.75rem;
     }
 
-    header h1 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-    }
+    header h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; }
+    header span { font-size: 0.8rem; background: rgba(255,255,255,0.12); padding: 0.2rem 0.6rem; border-radius: 4px; }
 
-    header span {
-      font-size: 0.8rem;
-      background: rgba(255,255,255,0.12);
-      padding: 0.2rem 0.6rem;
-      border-radius: 4px;
-    }
-
-    .container {
-      max-width: 720px;
-      margin: 2rem auto;
-      padding: 0 1rem;
-    }
+    .container { max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
 
     .card {
       background: #fff;
@@ -50,24 +37,42 @@
       margin-bottom: 1.25rem;
     }
 
-    .card h2 {
-      font-size: 0.95rem;
+    .card h2 { font-size: 0.95rem; font-weight: 600; margin-bottom: 1rem; color: #444; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.25rem;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #ddd;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 0.6rem 1rem;
+      text-align: center;
+      font-size: 0.9rem;
       font-weight: 600;
-      margin-bottom: 1rem;
-      color: #444;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      cursor: pointer;
+      background: #f8f9fb;
+      color: #666;
+      border: none;
+      transition: all 0.15s;
     }
 
-    label {
-      display: block;
-      font-size: 0.85rem;
-      font-weight: 500;
-      color: #555;
-      margin-bottom: 0.35rem;
-    }
+    .tab:not(:last-child) { border-right: 1px solid #ddd; }
+    .tab.active { background: #4f6ef7; color: #fff; }
+    .tab.active.revoke { background: #e74c3c; }
+    .tab:hover:not(.active) { background: #eef0f4; }
 
-    textarea, input[type="text"] {
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    label { display: block; font-size: 0.85rem; font-weight: 500; color: #555; margin-bottom: 0.35rem; }
+
+    textarea, select {
       width: 100%;
       padding: 0.6rem 0.75rem;
       border: 1px solid #ddd;
@@ -78,29 +83,13 @@
       background: #fafafa;
     }
 
-    textarea:focus, input:focus {
-      outline: none;
-      border-color: #4f6ef7;
-      background: #fff;
-    }
+    textarea:focus, select:focus { outline: none; border-color: #4f6ef7; background: #fff; }
+    textarea { min-height: 100px; resize: vertical; }
 
-    textarea {
-      min-height: 100px;
-      resize: vertical;
-    }
+    .form-row { margin-bottom: 1rem; }
+    .hint { font-size: 0.78rem; color: #888; margin-top: 0.25rem; }
 
-    .form-row {
-      margin-bottom: 1rem;
-    }
-
-    .hint {
-      font-size: 0.78rem;
-      color: #888;
-      margin-top: 0.25rem;
-    }
-
-    button#submit-btn {
-      background: #4f6ef7;
+    .btn {
       color: #fff;
       border: none;
       padding: 0.7rem 1.75rem;
@@ -112,18 +101,13 @@
       width: 100%;
     }
 
-    button#submit-btn:hover { background: #3b5de7; }
-    button#submit-btn:disabled {
-      background: #aaa;
-      cursor: not-allowed;
-    }
+    .btn:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-grant { background: #4f6ef7; }
+    .btn-grant:hover:not(:disabled) { background: #3b5de7; }
+    .btn-revoke { background: #e74c3c; }
+    .btn-revoke:hover:not(:disabled) { background: #c0392b; }
 
-    .log-entry {
-      border: 1px solid #e8e8e8;
-      border-radius: 8px;
-      margin-bottom: 0.75rem;
-      overflow: hidden;
-    }
+    .log-entry { border: 1px solid #e8e8e8; border-radius: 8px; margin-bottom: 0.75rem; overflow: hidden; }
 
     .log-header {
       background: #f8f9fb;
@@ -136,26 +120,14 @@
       align-items: center;
     }
 
-    .log-steps {
-      padding: 0.5rem 1rem;
-    }
+    .log-steps { padding: 0.5rem 1rem; }
 
-    .step {
-      padding: 0.4rem 0;
-      font-size: 0.85rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
+    .step { padding: 0.4rem 0; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
 
     .step .icon {
-      width: 18px;
-      height: 18px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.75rem;
-      flex-shrink: 0;
+      width: 18px; height: 18px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; flex-shrink: 0;
     }
 
     .step.pending .icon { color: #ccc; }
@@ -163,20 +135,11 @@
     .step.done .icon { color: #27ae60; }
     .step.error .icon { color: #e74c3c; }
 
-    .step.error .error-msg {
-      color: #e74c3c;
-      font-size: 0.8rem;
-      margin-left: 1.6rem;
-      display: block;
-    }
+    .step .info-msg { color: #888; font-size: 0.8rem; font-style: italic; }
 
-    .badge {
-      font-size: 0.7rem;
-      padding: 0.15rem 0.5rem;
-      border-radius: 10px;
-      font-weight: 500;
-    }
+    .step.error .error-msg { color: #e74c3c; font-size: 0.8rem; margin-left: 1.6rem; display: block; }
 
+    .badge { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 10px; font-weight: 500; }
     .badge.success { background: #d4edda; color: #155724; }
     .badge.error { background: #f8d7da; color: #721c24; }
     .badge.running { background: #fff3cd; color: #856404; }
@@ -184,13 +147,9 @@
     #results { display: none; }
 
     .spinner {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid #f0ad4e;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid #f0ad4e; border-top-color: transparent;
+      border-radius: 50%; animation: spin 0.6s linear infinite;
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -199,6 +158,7 @@
 <body>
 
 <header>
+  <img src="https://dev.copa-ai.org/assets/gaia-logo-without-text-DEsdmCrX.png" alt="COPA AI" style="width: 32px; height: 32px;">
   <h1>COPA AI Access Grantor</h1>
   <span>Auth0 + 1Password + Resend</span>
 </header>
@@ -206,7 +166,12 @@
 <div class="container">
 
   <div class="card">
-    <h2>Grant Access</h2>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('grant')">Grant Access</button>
+      <button class="tab" onclick="switchTab('revoke')">Revoke Access</button>
+    </div>
+
+    <!-- Shared fields -->
     <div class="form-row">
       <label for="emails">Email addresses</label>
       <textarea id="emails" placeholder="user1@example.com&#10;user2@example.com&#10;user3@example.com"></textarea>
@@ -214,9 +179,19 @@
     </div>
     <div class="form-row">
       <label for="connection">Auth0 Connection</label>
-      <input type="text" id="connection" value="Username-Password-Authentication">
+      <select id="connection">
+        <option value="Username-Password-Authentication">DEV/QA (Username-Password-Authentication)</option>
+        <option value="Username-Password-Auth-Prod">PROD (Username-Password-Auth-Prod)</option>
+      </select>
     </div>
-    <button id="submit-btn" onclick="handleSubmit()">Grant Access</button>
+
+    <!-- Tab-specific buttons -->
+    <div id="tab-grant" class="tab-content active">
+      <button class="btn btn-grant" id="grant-btn" onclick="handleGrant()">Grant Access</button>
+    </div>
+    <div id="tab-revoke" class="tab-content">
+      <button class="btn btn-revoke" id="revoke-btn" onclick="handleRevoke()">Revoke Access</button>
+    </div>
   </div>
 
   <div id="results" class="card">
@@ -230,7 +205,7 @@
 // ============================================================
 // STEP DEFINITIONS
 // ============================================================
-const STEPS = [
+const GRANT_STEPS = [
   { id: 'password', label: 'Generate password' },
   { id: '1password', label: 'Create 1Password item' },
   { id: 'share', label: 'Get share link' },
@@ -239,10 +214,37 @@ const STEPS = [
   { id: 'cleanup', label: 'Rollback', hidden: true },
 ];
 
+const REVOKE_STEPS = [
+  { id: 'auth0_find', label: 'Find Auth0 user' },
+  { id: 'auth0_delete', label: 'Delete Auth0 user', hidden: true },
+  { id: 'op_find', label: 'Find 1Password item' },
+  { id: 'op_delete', label: 'Delete 1Password item', hidden: true },
+];
+
+let currentTab = 'grant';
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active', 'revoke'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+  if (tab === 'grant') {
+    document.querySelectorAll('.tab')[0].classList.add('active');
+    document.getElementById('tab-grant').classList.add('active');
+  } else {
+    const revokeTab = document.querySelectorAll('.tab')[1];
+    revokeTab.classList.add('active', 'revoke');
+    document.getElementById('tab-revoke').classList.add('active');
+  }
+}
+
 // ============================================================
 // UI HELPERS
 // ============================================================
-function createLogEntry(email) {
+function createLogEntry(email, steps) {
   const entry = document.createElement('div');
   entry.className = 'log-entry';
   entry.id = `log-${CSS.escape(email)}`;
@@ -252,7 +254,7 @@ function createLogEntry(email) {
       <span class="badge running">Processing</span>
     </div>
     <div class="log-steps">
-      ${STEPS.map(s => `
+      ${steps.map(s => `
         <div class="step pending" id="step-${CSS.escape(email)}-${s.id}"
              ${s.hidden ? 'style="display:none"' : ''}>
           <span class="icon">&#9675;</span>
@@ -265,8 +267,23 @@ function createLogEntry(email) {
 }
 
 function updateStep(email, stepId, status, errorMsg) {
-  const el = document.getElementById(`step-${CSS.escape(email)}-${stepId}`);
-  if (!el) return;
+  let el = document.getElementById(`step-${CSS.escape(email)}-${stepId}`);
+
+  // Dynamically create step if it doesn't exist (e.g. auth0_delete, op_delete)
+  if (!el) {
+    const allSteps = [...GRANT_STEPS, ...REVOKE_STEPS];
+    const stepDef = allSteps.find(s => s.id === stepId);
+    const label = stepDef ? stepDef.label : stepId;
+    const logEntry = document.getElementById(`log-${CSS.escape(email)}`);
+    if (!logEntry) return;
+    const stepsContainer = logEntry.querySelector('.log-steps');
+    const div = document.createElement('div');
+    div.className = 'step pending';
+    div.id = `step-${CSS.escape(email)}-${stepId}`;
+    div.innerHTML = `<span class="icon">&#9675;</span><span>${label}</span>`;
+    stepsContainer.appendChild(div);
+    el = div;
+  }
 
   el.style.display = '';
   el.className = `step ${status}`;
@@ -287,6 +304,17 @@ function updateStep(email, stepId, status, errorMsg) {
     }
     errEl.textContent = errorMsg;
   }
+
+  // Show info message for "done" with a message (e.g. "skipped")
+  if (status === 'done' && errorMsg) {
+    let infoEl = el.querySelector('.info-msg');
+    if (!infoEl) {
+      infoEl = document.createElement('span');
+      infoEl.className = 'info-msg';
+      el.appendChild(infoEl);
+    }
+    infoEl.textContent = errorMsg;
+  }
 }
 
 function updateBadge(email, status) {
@@ -298,18 +326,16 @@ function updateBadge(email, status) {
 }
 
 // ============================================================
-// BACKEND COMMUNICATION (SSE streaming from Python backend)
+// SSE STREAM READER
 // ============================================================
-async function grantAccess(email, connection) {
-  const response = await fetch('/api/grant', {
+async function streamRequest(url, email, connection) {
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, connection }),
   });
 
-  if (!response.ok) {
-    throw new Error(`Server error: ${response.status}`);
-  }
+  if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -322,7 +348,7 @@ async function grantAccess(email, connection) {
 
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split('\n');
-    buffer = lines.pop(); // keep incomplete line
+    buffer = lines.pop();
 
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue;
@@ -330,9 +356,7 @@ async function grantAccess(email, connection) {
         const event = JSON.parse(line.slice(6));
         updateStep(email, event.step, event.status, event.error);
         if (event.status === 'error') hadError = true;
-      } catch {
-        // skip malformed lines
-      }
+      } catch { /* skip malformed */ }
     }
   }
 
@@ -340,42 +364,58 @@ async function grantAccess(email, connection) {
 }
 
 // ============================================================
-// FORM HANDLER
+// FORM HANDLERS
 // ============================================================
-async function handleSubmit() {
-  const btn = document.getElementById('submit-btn');
+function getEmails() {
   const raw = document.getElementById('emails').value.trim();
-  const connection = document.getElementById('connection').value.trim();
+  if (!raw) return [];
+  return raw.split('\n').map(e => e.trim().toLowerCase()).filter(e => e && e.includes('@'));
+}
 
-  if (!raw) return;
-
-  const emails = raw
-    .split('\n')
-    .map(e => e.trim().toLowerCase())
-    .filter(e => e && e.includes('@'));
-
+async function handleGrant() {
+  const emails = getEmails();
+  const connection = document.getElementById('connection').value;
   if (emails.length === 0) return;
 
+  const btn = document.getElementById('grant-btn');
   btn.disabled = true;
   btn.textContent = 'Processing...';
 
-  const resultsDiv = document.getElementById('results');
-  const logDiv = document.getElementById('log');
-  resultsDiv.style.display = 'block';
-  logDiv.innerHTML = '';
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('log').innerHTML = '';
+
+  for (const email of emails) createLogEntry(email, GRANT_STEPS);
 
   for (const email of emails) {
-    createLogEntry(email);
-  }
-
-  // Process sequentially to avoid rate limits
-  for (const email of emails) {
-    const success = await grantAccess(email, connection);
+    const success = await streamRequest('/api/grant', email, connection);
     updateBadge(email, success ? 'success' : 'error');
   }
 
   btn.disabled = false;
   btn.textContent = 'Grant Access';
+}
+
+async function handleRevoke() {
+  const emails = getEmails();
+  const connection = document.getElementById('connection').value;
+  if (emails.length === 0) return;
+
+  const btn = document.getElementById('revoke-btn');
+  btn.disabled = true;
+  btn.textContent = 'Revoking...';
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('log').innerHTML = '';
+
+  for (const email of emails) createLogEntry(email, REVOKE_STEPS);
+
+  for (const email of emails) {
+    const success = await streamRequest('/api/revoke', email, connection);
+    updateBadge(email, success ? 'success' : 'error');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Revoke Access';
 }
 </script>
 

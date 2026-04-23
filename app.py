@@ -5,7 +5,7 @@ Usage:
     pip install -r requirements.txt
     python app.py
 
-Then open http://localhost:9000
+Then open http://localhost:9999
 """
 
 import asyncio
@@ -152,8 +152,19 @@ async def create_share_link(item: Item) -> str:
     )
 
 
+async def find_op_item(email: str) -> str | None:
+    """Find a 1Password item by email. Returns item ID or None."""
+    client = await get_op_client()
+    items = await client.items.list(OP_VAULT_ID)
+    target_title = f"COPA AI: Access — {email}"
+    for item in items:
+        if item.title == target_title:
+            return item.id
+    return None
+
+
 async def delete_op_item(item_id: str) -> None:
-    """Delete a 1Password item (rollback)."""
+    """Delete a 1Password item."""
     client = await get_op_client()
     await client.items.delete(vault_id=OP_VAULT_ID, item_id=item_id)
 
@@ -212,8 +223,26 @@ async def create_auth0_user(
     return resp.json()
 
 
+async def find_auth0_user(http: httpx.AsyncClient, email: str, connection: str) -> str | None:
+    """Find an Auth0 user by email. Returns user_id or None."""
+    token = await get_auth0_token(http)
+    resp = await http.get(
+        f"https://{AUTH0_DOMAIN}/api/v2/users",
+        headers={"Authorization": f"Bearer {token}"},
+        params={
+            "q": f'email:"{email}" AND identities.connection:"{connection}"',
+            "search_engine": "v3",
+        },
+    )
+    resp.raise_for_status()
+    users = resp.json()
+    if users:
+        return users[0]["user_id"]
+    return None
+
+
 async def delete_auth0_user(http: httpx.AsyncClient, user_id: str) -> None:
-    """Delete an Auth0 user (rollback)."""
+    """Delete an Auth0 user."""
     token = await get_auth0_token(http)
     resp = await http.delete(
         f"https://{AUTH0_DOMAIN}/api/v2/users/{user_id}",
@@ -229,6 +258,7 @@ async def delete_auth0_user(http: httpx.AsyncClient, user_id: str) -> None:
 async def send_email(http: httpx.AsyncClient, to_email: str, share_link: str) -> dict:
     html_body = f"""\
 <div style="font-family: -apple-system, sans-serif; max-width: 520px; margin: 0 auto; padding: 2rem;">
+  <img src="https://dev.copa-ai.org/assets/gaia-logo-without-text-DEsdmCrX.png" alt="COPA AI" style="width: 48px; height: 48px; margin-bottom: 1rem;">
   <h2 style="color: #1a1a2e;">Your access has been granted</h2>
   <p>Hello,</p>
   <p>An account in copa-ai.org has been created for you. Your login credentials are stored securely in the following link.</p>
@@ -369,6 +399,48 @@ async def grant(req: GrantRequest):
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
+class RevokeRequest(BaseModel):
+    email: str
+    connection: str
+
+
+@app.post("/api/revoke")
+async def revoke(req: RevokeRequest):
+    async def stream():
+        async with httpx.AsyncClient(timeout=30) as http:
+            # Step 1 — Find and delete Auth0 user
+            yield sse_event("auth0_find", "running")
+            try:
+                user_id = await find_auth0_user(http, req.email, req.connection)
+                if user_id:
+                    yield sse_event("auth0_find", "done")
+                    yield sse_event("auth0_delete", "running")
+                    await delete_auth0_user(http, user_id)
+                    yield sse_event("auth0_delete", "done")
+                else:
+                    yield sse_event("auth0_find", "done", "User not found in Auth0 — skipped")
+            except Exception as e:
+                yield sse_event("auth0_find", "error", str(e))
+                return
+
+            # Step 2 — Find and delete 1Password item
+            yield sse_event("op_find", "running")
+            try:
+                op_item_id = await find_op_item(req.email)
+                if op_item_id:
+                    yield sse_event("op_find", "done")
+                    yield sse_event("op_delete", "running")
+                    await delete_op_item(op_item_id)
+                    yield sse_event("op_delete", "done")
+                else:
+                    yield sse_event("op_find", "done", "Item not found in 1Password — skipped")
+            except Exception as e:
+                yield sse_event("op_find", "error", str(e))
+                return
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
 @app.get("/")
 async def index():
     html = Path(__file__).parent / "index.html"
@@ -382,4 +454,4 @@ async def index():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=9000)
+    uvicorn.run(app, host="0.0.0.0", port=9999)
