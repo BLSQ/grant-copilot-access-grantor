@@ -83,7 +83,7 @@
       background: #fafafa;
     }
 
-    textarea:focus, select:focus { outline: none; border-color: #4f6ef7; background: #fff; }
+    textarea:focus, select:focus, #organisation-input:focus { outline: none; border-color: #4f6ef7; background: #fff; }
     textarea { min-height: 100px; resize: vertical; }
 
     .form-row { margin-bottom: 1rem; }
@@ -144,6 +144,39 @@
     .badge.error { background: #f8d7da; color: #721c24; }
     .badge.running { background: #fff3cd; color: #856404; }
 
+    .grant-only { display: none; }
+    .grant-only.visible { display: block; }
+
+    .combobox { position: relative; }
+    .combobox input[type="text"] {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      transition: border-color 0.15s;
+      background: #fafafa;
+    }
+    .combobox input[type="text"]:focus { outline: none; border-color: #4f6ef7; background: #fff; }
+    .combobox-list {
+      position: absolute; top: 100%; left: 0; right: 0;
+      max-height: 220px; overflow-y: auto;
+      background: #fff; border: 1px solid #ddd; border-radius: 6px;
+      display: none; z-index: 10;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      margin-top: 2px;
+    }
+    .combobox-list.open { display: block; }
+    .combobox-option {
+      padding: 0.45rem 0.75rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .combobox-option:hover, .combobox-option.highlighted { background: #f0f2ff; }
+    .combobox-option .flag { font-size: 1.1rem; }
+
     #results { display: none; }
 
     .spinner {
@@ -185,6 +218,21 @@
       </select>
     </div>
 
+    <div class="form-row grant-only visible" id="country-field">
+      <label for="country-input">Country</label>
+      <div class="combobox" id="country-combobox">
+        <input type="text" id="country-input" placeholder="Search country..." autocomplete="off">
+        <input type="hidden" id="country-value">
+        <div class="combobox-list" id="country-list"></div>
+      </div>
+    </div>
+
+    <div class="form-row grant-only visible" id="organisation-field">
+      <label for="organisation-input">Organisation</label>
+      <input type="text" id="organisation-input" placeholder="e.g. Sénégal CCM Secrétariat"
+             style="width:100%;padding:0.6rem 0.75rem;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;font-family:inherit;background:#fafafa;transition:border-color 0.15s;">
+    </div>
+
     <!-- Tab-specific buttons -->
     <div id="tab-grant" class="tab-content active">
       <button class="btn btn-grant" id="grant-btn" onclick="handleGrant()">Grant Access</button>
@@ -224,6 +272,11 @@ const REVOKE_STEPS = [
 let currentTab = 'grant';
 
 // ============================================================
+// COUNTRIES (loaded from /api/countries)
+// ============================================================
+let COUNTRIES = [];
+
+// ============================================================
 // TAB SWITCHING
 // ============================================================
 function switchTab(tab) {
@@ -239,6 +292,10 @@ function switchTab(tab) {
     revokeTab.classList.add('active', 'revoke');
     document.getElementById('tab-revoke').classList.add('active');
   }
+
+  document.querySelectorAll('.grant-only').forEach(el => {
+    el.classList.toggle('visible', tab === 'grant');
+  });
 }
 
 // ============================================================
@@ -328,11 +385,11 @@ function updateBadge(email, status) {
 // ============================================================
 // SSE STREAM READER
 // ============================================================
-async function streamRequest(url, email, connection) {
+async function streamRequest(url, email, connection, extra = {}) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, connection }),
+    body: JSON.stringify({ email, connection, ...extra }),
   });
 
   if (!response.ok) throw new Error(`Server error: ${response.status}`);
@@ -375,7 +432,11 @@ function getEmails() {
 async function handleGrant() {
   const emails = getEmails();
   const connection = document.getElementById('connection').value;
+  const country = document.getElementById('country-value').value;
+  const organisation = document.getElementById('organisation-input').value.trim();
   if (emails.length === 0) return;
+  if (!country) { alert('Please select a country'); return; }
+  if (!organisation) { alert('Please enter an organisation'); return; }
 
   const btn = document.getElementById('grant-btn');
   btn.disabled = true;
@@ -387,7 +448,7 @@ async function handleGrant() {
   for (const email of emails) createLogEntry(email, GRANT_STEPS);
 
   for (const email of emails) {
-    const success = await streamRequest('/api/grant', email, connection);
+    const success = await streamRequest('/api/grant', email, connection, { country, organisation });
     updateBadge(email, success ? 'success' : 'error');
   }
 
@@ -417,6 +478,93 @@ async function handleRevoke() {
   btn.disabled = false;
   btn.textContent = 'Revoke Access';
 }
+
+// ============================================================
+// COUNTRY COMBOBOX
+// ============================================================
+function initCountryCombobox() {
+  const input = document.getElementById('country-input');
+  const hidden = document.getElementById('country-value');
+  const list = document.getElementById('country-list');
+  let highlightIdx = -1;
+
+  function render(filtered) {
+    list.innerHTML = '';
+    highlightIdx = -1;
+    filtered.forEach((c, i) => {
+      const div = document.createElement('div');
+      div.className = 'combobox-option';
+      div.dataset.code = c.code;
+      div.innerHTML = `${c.flag ? `<span class="flag">${c.flag}</span>` : ''}<span>${c.name} (${c.code})</span>`;
+      div.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        select(c);
+      });
+      list.appendChild(div);
+    });
+  }
+
+  function select(c) {
+    hidden.value = c.code;
+    input.value = `${c.flag ? c.flag + ' ' : ''}${c.name} (${c.code})`;
+    list.classList.remove('open');
+  }
+
+  function filter() {
+    const q = input.value.toLowerCase();
+    return COUNTRIES.filter(c =>
+      c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
+    );
+  }
+
+  input.addEventListener('focus', () => {
+    render(filter());
+    list.classList.add('open');
+  });
+
+  input.addEventListener('input', () => {
+    hidden.value = '';
+    render(filter());
+    list.classList.add('open');
+  });
+
+  input.addEventListener('blur', () => {
+    list.classList.remove('open');
+  });
+
+  input.addEventListener('keydown', (e) => {
+    const options = list.querySelectorAll('.combobox-option');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      highlightIdx = Math.min(highlightIdx + 1, options.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      highlightIdx = Math.max(highlightIdx - 1, 0);
+    } else if (e.key === 'Enter' && highlightIdx >= 0) {
+      e.preventDefault();
+      const code = options[highlightIdx].dataset.code;
+      select(COUNTRIES.find(c => c.code === code));
+      return;
+    } else if (e.key === 'Escape') {
+      list.classList.remove('open');
+      return;
+    } else {
+      return;
+    }
+    options.forEach((o, i) => o.classList.toggle('highlighted', i === highlightIdx));
+    if (options[highlightIdx]) options[highlightIdx].scrollIntoView({ block: 'nearest' });
+  });
+}
+
+// ============================================================
+// INIT
+// ============================================================
+fetch('/api/countries')
+  .then(r => r.json())
+  .then(data => {
+    COUNTRIES = data;
+    initCountryCombobox();
+  });
 </script>
 
 </body>

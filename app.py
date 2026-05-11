@@ -201,19 +201,24 @@ async def get_auth0_token(http: httpx.AsyncClient) -> str:
 
 
 async def create_auth0_user(
-    http: httpx.AsyncClient, email: str, password: str, connection: str
+    http: httpx.AsyncClient, email: str, password: str, connection: str,
+    app_metadata: dict | None = None,
 ) -> dict:
     token = await get_auth0_token(http)
+
+    payload = {
+        "email": email,
+        "password": password,
+        "connection": connection,
+        "email_verified": False,
+    }
+    if app_metadata:
+        payload["app_metadata"] = app_metadata
 
     resp = await http.post(
         f"https://{AUTH0_DOMAIN}/api/v2/users",
         headers={"Authorization": f"Bearer {token}"},
-        json={
-            "email": email,
-            "password": password,
-            "connection": connection,
-            "email_verified": False,
-        },
+        json=payload,
     )
 
     if resp.status_code == 409:
@@ -306,6 +311,8 @@ def sse_event(step: str, status: str, error: str | None = None) -> str:
 class GrantRequest(BaseModel):
     email: str
     connection: str
+    country: str
+    organisation: str
 
 
 @app.post("/api/grant")
@@ -376,7 +383,8 @@ async def grant(req: GrantRequest):
             # Step 4 — Create Auth0 user
             yield sse_event("auth0", "running")
             try:
-                auth0_user = await create_auth0_user(http, req.email, password, req.connection)
+                app_metadata = {"country": req.country, "organisation": req.organisation}
+                auth0_user = await create_auth0_user(http, req.email, password, req.connection, app_metadata)
                 auth0_user_id = auth0_user["user_id"]
                 yield sse_event("auth0", "done")
             except Exception as e:
@@ -439,6 +447,12 @@ async def revoke(req: RevokeRequest):
                 return
 
     return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+@app.get("/api/countries")
+async def countries():
+    data = Path(__file__).parent / "countries.json"
+    return HTMLResponse(data.read_text(), media_type="application/json")
 
 
 @app.get("/")
