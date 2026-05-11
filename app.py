@@ -44,7 +44,7 @@ load_dotenv()
 # CONFIGURATION — reads from .env (see .env.example)
 # ═══════════════════════════════════════════════════════════════
 
-COPA_AI_DOMAIN = "https://dev.copa-ai.org"
+COPA_AI_DOMAIN = "https://copa-ai.org"
 
 AUTH0_DOMAIN = os.environ["AUTH0_DOMAIN"]
 AUTH0_CLIENT_ID = os.environ["AUTH0_CLIENT_ID"]
