@@ -81,7 +81,7 @@ COOKIE_NAME = "session"
 
 app = FastAPI(title="COPA AI: Access Grantor")
 
-PUBLIC_PATHS = {"/health", "/access-grantor/login", "/access-grantor/logout"}
+PUBLIC_PATHS = {"/health", "/login", "/logout"}
 
 
 def _sign(value: str) -> str:
@@ -151,19 +151,19 @@ LOGIN_HTML = """<!DOCTYPE html>
 </html>"""
 
 
-@app.get("/access-grantor/login")
+@app.get("/login")
 async def login_page():
     return HTMLResponse(LOGIN_HTML.format(error=""))
 
 
-@app.post("/access-grantor/login")
+@app.post("/login")
 async def login(username: str = Form(), password: str = Form()):
     expected = AUTH_USERS.get(username)
     if expected is None or not secrets.compare_digest(password.encode(), expected.encode()):
         html = LOGIN_HTML.format(error='<p class="error">Invalid username or password</p>')
         return HTMLResponse(html, status_code=status.HTTP_401_UNAUTHORIZED)
 
-    response = RedirectResponse("/", status_code=status.HTTP_301_MOVED_PERMANENTLY)
+    response = RedirectResponse("/access-grantor/", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(
         key=COOKIE_NAME,
         value=_sign(username),
@@ -174,7 +174,7 @@ async def login(username: str = Form(), password: str = Form()):
     return response
 
 
-@app.get("/access-grantor/logout")
+@app.get("/logout")
 async def logout():
     response = RedirectResponse("/access-grantor/login", status_code=status.HTTP_303_SEE_OTHER)
     response.delete_cookie(COOKIE_NAME)
