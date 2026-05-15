@@ -17,8 +17,9 @@ import time
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from onepassword import (
     Client as OPClient,
     AutofillBehavior,
@@ -58,11 +59,37 @@ RESEND_FROM = os.environ["RESEND_FROM"]
 
 PASSWORD_LENGTH = int(os.getenv("PASSWORD_LENGTH", "24"))
 
+# Basic auth — env var format: "user1:pass1,user2:pass2"
+_raw_users = os.environ.get("BASIC_AUTH_USERS", "")
+BASIC_AUTH_USERS: dict[str, str] = {}
+for pair in _raw_users.split(","):
+    pair = pair.strip()
+    if ":" in pair:
+        u, p = pair.split(":", 1)
+        BASIC_AUTH_USERS[u.strip()] = p.strip()
+
+if not BASIC_AUTH_USERS:
+    raise RuntimeError("BASIC_AUTH_USERS env var is required (format: user1:pass1,user2:pass2)")
+
 # ═══════════════════════════════════════════════════════════════
 # APP
 # ═══════════════════════════════════════════════════════════════
 
 app = FastAPI(title="COPA AI: Access Grantor")
+security = HTTPBasic()
+
+
+def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
+    expected_password = BASIC_AUTH_USERS.get(credentials.username)
+    if expected_password is None or not secrets.compare_digest(
+        credentials.password.encode(), expected_password.encode()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
 
 
 # ───────────────────────────────────────────────────────────────
@@ -316,7 +343,7 @@ class GrantRequest(BaseModel):
 
 
 @app.post("/api/grant")
-async def grant(req: GrantRequest):
+async def grant(req: GrantRequest, _user: str = Depends(verify_credentials)):
     async def stream():
         auth0_user_id: str | None = None
 
@@ -413,7 +440,7 @@ class RevokeRequest(BaseModel):
 
 
 @app.post("/api/revoke")
-async def revoke(req: RevokeRequest):
+async def revoke(req: RevokeRequest, _user: str = Depends(verify_credentials)):
     async def stream():
         async with httpx.AsyncClient(timeout=30) as http:
             # Step 1 — Find and delete Auth0 user
@@ -450,13 +477,13 @@ async def revoke(req: RevokeRequest):
 
 
 @app.get("/api/countries")
-async def countries():
+async def countries(_user: str = Depends(verify_credentials)):
     data = Path(__file__).parent / "countries.json"
     return HTMLResponse(data.read_text(), media_type="application/json")
 
 
 @app.get("/")
-async def index():
+async def index(_user: str = Depends(verify_credentials)):
     html = Path(__file__).parent / "index.html"
     return HTMLResponse(html.read_text())
 
