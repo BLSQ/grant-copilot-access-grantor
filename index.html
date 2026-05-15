@@ -26,6 +26,9 @@
 
     header h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; }
     header span { font-size: 0.8rem; background: rgba(255,255,255,0.12); padding: 0.2rem 0.6rem; border-radius: 4px; }
+    header { justify-content: flex-start; }
+    .logout-btn { margin-left: auto; font-size: 0.8rem; color: rgba(255,255,255,0.7); background: none; border: 1px solid rgba(255,255,255,0.2); padding: 0.3rem 0.75rem; border-radius: 4px; cursor: pointer; text-decoration: none; }
+    .logout-btn:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
 
     .container { max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
 
@@ -194,6 +197,7 @@
   <img src="https://dev.copa-ai.org/assets/gaia-logo-without-text-DEsdmCrX.png" alt="COPA AI" style="width: 32px; height: 32px;">
   <h1>COPA AI Access Grantor</h1>
   <span>Auth0 + 1Password + Resend</span>
+  <a href="/access-grantor/logout" class="logout-btn">Logout</a>
 </header>
 
 <div class="container">
