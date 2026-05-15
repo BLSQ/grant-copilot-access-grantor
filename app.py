@@ -163,7 +163,7 @@ async def login(username: str = Form(), password: str = Form()):
         html = LOGIN_HTML.replace("{error}", '<p class="error">Invalid username or password</p>')
         return HTMLResponse(html, status_code=status.HTTP_401_UNAUTHORIZED)
 
-    response = RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    response = RedirectResponse("/access-grantor", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(
         key=COOKIE_NAME,
         value=_sign(username),
