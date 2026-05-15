@@ -9,6 +9,8 @@ Then open http://localhost:9999
 """
 
 import asyncio
+import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -17,9 +19,8 @@ import time
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, status
-from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import FastAPI, Form, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from onepassword import (
     Client as OPClient,
     AutofillBehavior,
@@ -59,37 +60,125 @@ RESEND_FROM = os.environ["RESEND_FROM"]
 
 PASSWORD_LENGTH = int(os.getenv("PASSWORD_LENGTH", "24"))
 
-# Basic auth — env var format: "user1:pass1,user2:pass2"
+# Auth — env var format: "user1:pass1,user2:pass2"
 _raw_users = os.environ.get("BASIC_AUTH_USERS", "")
-BASIC_AUTH_USERS: dict[str, str] = {}
+AUTH_USERS: dict[str, str] = {}
 for pair in _raw_users.split(","):
     pair = pair.strip()
     if ":" in pair:
         u, p = pair.split(":", 1)
-        BASIC_AUTH_USERS[u.strip()] = p.strip()
+        AUTH_USERS[u.strip()] = p.strip()
 
-if not BASIC_AUTH_USERS:
+if not AUTH_USERS:
     raise RuntimeError("BASIC_AUTH_USERS env var is required (format: user1:pass1,user2:pass2)")
+
+COOKIE_SECRET = os.environ.get("COOKIE_SECRET", secrets.token_hex(32))
+COOKIE_NAME = "session"
 
 # ═══════════════════════════════════════════════════════════════
 # APP
 # ═══════════════════════════════════════════════════════════════
 
 app = FastAPI(title="COPA AI: Access Grantor")
-security = HTTPBasic()
+
+PUBLIC_PATHS = {"/health", "/login", "/logout"}
 
 
-def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
-    expected_password = BASIC_AUTH_USERS.get(credentials.username)
-    if expected_password is None or not secrets.compare_digest(
-        credentials.password.encode(), expected_password.encode()
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    return credentials.username
+def _sign(value: str) -> str:
+    sig = hmac.new(COOKIE_SECRET.encode(), value.encode(), hashlib.sha256).hexdigest()
+    return f"{value}.{sig}"
+
+
+def _verify_signature(signed: str) -> str | None:
+    if "." not in signed:
+        return None
+    value, sig = signed.rsplit(".", 1)
+    expected = hmac.new(COOKIE_SECRET.encode(), value.encode(), hashlib.sha256).hexdigest()
+    if hmac.compare_digest(sig, expected):
+        return value
+    return None
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    if request.url.path in PUBLIC_PATHS:
+        return await call_next(request)
+
+    token = request.cookies.get(COOKIE_NAME)
+    username = _verify_signature(token) if token else None
+    if username is None or username not in AUTH_USERS:
+        # API calls get 401 so JS can handle it; browser nav gets redirect
+        if request.url.path.startswith("/api/"):
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    request.state.user = username
+    return await call_next(request)
+
+
+LOGIN_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — COPA AI Access Grantor</title>
+  <link rel="icon" href="https://dev.copa-ai.org/assets/gaia-logo-without-text-DEsdmCrX.png" type="image/png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f6f8; color: #1a1a2e; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 2rem; width: 100%; max-width: 360px; }
+    .login-card h1 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1.5rem; color: #1a1a2e; text-align: center; }
+    label { display: block; font-size: 0.85rem; font-weight: 500; color: #555; margin-bottom: 0.35rem; }
+    input { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; margin-bottom: 1rem; }
+    input:focus { outline: none; border-color: #4f6ef7; box-shadow: 0 0 0 2px rgba(79,110,247,0.15); }
+    button { width: 100%; padding: 0.7rem; background: #4f6ef7; color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+    button:hover { background: #3b5de7; }
+    .error { color: #e74c3c; font-size: 0.85rem; margin-bottom: 1rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <form class="login-card" method="post" action="/login">
+    <h1>COPA AI Access Grantor</h1>
+    {error}
+    <label for="username">Username</label>
+    <input type="text" id="username" name="username" required autofocus>
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" required>
+    <button type="submit">Log in</button>
+  </form>
+</body>
+</html>"""
+
+
+@app.get("/login")
+async def login_page():
+    return HTMLResponse(LOGIN_HTML.format(error=""))
+
+
+@app.post("/login")
+async def login(username: str = Form(), password: str = Form()):
+    expected = AUTH_USERS.get(username)
+    if expected is None or not secrets.compare_digest(password.encode(), expected.encode()):
+        html = LOGIN_HTML.format(error='<p class="error">Invalid username or password</p>')
+        return HTMLResponse(html, status_code=status.HTTP_401_UNAUTHORIZED)
+
+    response = RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=_sign(username),
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 60 * 24 * 7,  # 7 days
+    )
+    return response
+
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+    response.delete_cookie(COOKIE_NAME)
+    return response
 
 
 # ───────────────────────────────────────────────────────────────
@@ -343,7 +432,7 @@ class GrantRequest(BaseModel):
 
 
 @app.post("/api/grant")
-async def grant(req: GrantRequest, _user: str = Depends(verify_credentials)):
+async def grant(req: GrantRequest):
     async def stream():
         auth0_user_id: str | None = None
 
@@ -440,7 +529,7 @@ class RevokeRequest(BaseModel):
 
 
 @app.post("/api/revoke")
-async def revoke(req: RevokeRequest, _user: str = Depends(verify_credentials)):
+async def revoke(req: RevokeRequest):
     async def stream():
         async with httpx.AsyncClient(timeout=30) as http:
             # Step 1 — Find and delete Auth0 user
@@ -477,7 +566,7 @@ async def revoke(req: RevokeRequest, _user: str = Depends(verify_credentials)):
 
 
 @app.get("/api/countries")
-async def countries(_user: str = Depends(verify_credentials)):
+async def countries():
     data = Path(__file__).parent / "countries.json"
     return HTMLResponse(data.read_text(), media_type="application/json")
 
@@ -488,7 +577,7 @@ async def health():
 
 
 @app.get("/")
-async def index(_user: str = Depends(verify_credentials)):
+async def index():
     html = Path(__file__).parent / "index.html"
     return HTMLResponse(html.read_text())
 
