@@ -81,7 +81,7 @@ COOKIE_NAME = "session"
 
 app = FastAPI(title="COPA AI: Access Grantor")
 
-PUBLIC_PATHS = {"/health", "/login", "/logout"}
+PUBLIC_PATHS = {"/health", "/access-grantor/login", "/access-grantor/logout"}
 
 
 def _sign(value: str) -> str:
@@ -111,7 +111,7 @@ async def auth_middleware(request: Request, call_next):
         if request.url.path.startswith("/api/"):
             from fastapi.responses import JSONResponse
             return JSONResponse({"detail": "Not authenticated"}, status_code=401)
-        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse("/access-grantor/login", status_code=status.HTTP_301_MOVED_PERMANENTLY)
 
     request.state.user = username
     return await call_next(request)
@@ -138,7 +138,7 @@ LOGIN_HTML = """<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <form class="login-card" method="post" action="/login">
+  <form class="login-card" method="post" action="/access-grantor/login">
     <h1>COPA AI Access Grantor</h1>
     {error}
     <label for="username">Username</label>
@@ -151,19 +151,19 @@ LOGIN_HTML = """<!DOCTYPE html>
 </html>"""
 
 
-@app.get("/login")
+@app.get("/access-grantor/login")
 async def login_page():
     return HTMLResponse(LOGIN_HTML.format(error=""))
 
 
-@app.post("/login")
+@app.post("/access-grantor/login")
 async def login(username: str = Form(), password: str = Form()):
     expected = AUTH_USERS.get(username)
     if expected is None or not secrets.compare_digest(password.encode(), expected.encode()):
         html = LOGIN_HTML.format(error='<p class="error">Invalid username or password</p>')
         return HTMLResponse(html, status_code=status.HTTP_401_UNAUTHORIZED)
 
-    response = RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    response = RedirectResponse("/", status_code=status.HTTP_301_MOVED_PERMANENTLY)
     response.set_cookie(
         key=COOKIE_NAME,
         value=_sign(username),
@@ -174,9 +174,9 @@ async def login(username: str = Form(), password: str = Form()):
     return response
 
 
-@app.get("/logout")
+@app.get("/access-grantor/logout")
 async def logout():
-    response = RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+    response = RedirectResponse("/access-grantor/login", status_code=status.HTTP_303_SEE_OTHER)
     response.delete_cookie(COOKIE_NAME)
     return response
 
