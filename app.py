@@ -482,6 +482,11 @@ async def countries(_user: str = Depends(verify_credentials)):
     return HTMLResponse(data.read_text(), media_type="application/json")
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 @app.get("/")
 async def index(_user: str = Depends(verify_credentials)):
     html = Path(__file__).parent / "index.html"
